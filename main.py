@@ -9,7 +9,7 @@ from neopixel import NeoPixel
 
 # --- Hardware ---
 led_interno = Pin(8, Pin.OUT)       # LED azul da placa ESP32-C3
-num_leds = 21
+num_leds = 2
 fita = NeoPixel(Pin(1), num_leds)   # Fita RGB no Pino 1
 
 # ==========================================
@@ -296,7 +296,7 @@ def auto_atualizar_boot():
         versao_remota = resposta_v.text.strip()
         resposta_v.close()
         
-        print(f"📦 Versão Local: {versao_local} | ☁️ Versão Nuvem: {versao_remota}")
+        print(f"📦 Versão Local: {versao_local} | ☁️  Versão da Nuvem: {versao_remota}")
         
         # 3. Compara as versões
         if versao_remota != versao_local:

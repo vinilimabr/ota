@@ -35,17 +35,47 @@ def conectar_ou_configurar():
         sta.connect(ssid_salvo, senha_salva)
         
         tentativas = 0
-        while not sta.isconnected() and tentativas < 20: 
-            led_interno.value(not led_interno.value()) # Pisca o LED enquanto tenta
-            time.sleep(0.5)
+        pos = 0
+        direcao = 1
+        
+        # Mudamos de 20 tentativas(0.5s) para 100 tentativas(0.1s) = 10 segundos
+        while not sta.isconnected() and tentativas < 100: 
+            # 1. Pisca o LED da placa a cada 5 loops (0.5s) para manter o padrão
+            if tentativas % 5 == 0:
+                led_interno.value(not led_interno.value()) 
+
+            # 2. Efeito Fita: "Scanner" Azul buscando rede
+            for i in range(num_leds): fita[i] = (0, 0, 0) # Apaga manualmente
+            fita[pos] = (0, 100, 255) # Ponto principal azul brilhante
+            
+            # Cria um rastro
+            if 0 <= pos - direcao < num_leds:
+                fita[pos - direcao] = (0, 15, 50) # Rastro mais fraco
+            fita.write()
+            
+            # Faz o ponto ir e voltar
+            pos += direcao
+            if pos >= num_leds - 1 or pos <= 0:
+                direcao *= -1 # Inverte a direção quando bate na ponta
+
+            time.sleep(0.1) # Animação mais rápida e fluida
             tentativas += 1
 
         if sta.isconnected():
             ip = sta.ifconfig()[0]
             print(f"✅ Conectado com sucesso! IP: {ip}")
             led_interno.value(1) # Acende fixo para confirmar
+            
+            # Pisca tudo verde rápido para comemorar a conexão!
+            for _ in range(3):
+                for i in range(num_leds): fita[i] = (0, 255, 0)
+                fita.write()
+                time.sleep(0.1)
+                for i in range(num_leds): fita[i] = (0, 0, 0)
+                fita.write()
+                time.sleep(0.1)
+                
             return ip
-        
 
 
 
@@ -63,13 +93,26 @@ def conectar_ou_configurar():
     s.bind(('', 80))
     s.listen(1)
 
+    led_giratorio = 0 # Controle do efeito da fita
+
     while True:
         # Pisca rápido indicando modo AP de Configuração
         led_interno.value(not led_interno.value()) 
+        
+        # --- Efeito Fita: "Radar Verde" girando ---
+        for i in range(num_leds): fita[i] = (0, 0, 0) # Apaga a fita
+        fita[led_giratorio % num_leds] = (0, 255, 0)  # Ponto principal verde forte
+        fita[(led_giratorio - 1) % num_leds] = (0, 30, 0) # Rastro
+        fita.write()
+        led_giratorio += 1
+        # ------------------------------------------
+
         try:
-            s.settimeout(0.2) # Timeout para permitir o pisca do LED
+            s.settimeout(0.1) # Reduzi um pouco o timeout para o giro ficar suave
             conn, addr = s.accept()
             req = conn.recv(1024).decode('utf-8')
+            
+            # ... (o resto do código de salvar credenciais e a página HTML continuam exatamente iguais a partir daqui) ...
 
             # Captura a senha enviada pelo celular
             if '/salvar?ssid=' in req:
@@ -296,7 +339,7 @@ def auto_atualizar_boot():
         versao_remota = resposta_v.text.strip()
         resposta_v.close()
         
-        print(f"📦 Versão Local: {versao_local} | ☁️  Versão da Nuvem: {versao_remota}")
+        print(f"📦 Versão Local: {versao_local} | ☁️  Versão Nuvem: {versao_remota}")
         
         # 3. Compara as versões
         if versao_remota != versao_local:

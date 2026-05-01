@@ -3,6 +3,7 @@ import socket
 import time
 import machine
 import json
+import urequests # <- Nova biblioteca para fazer o download
 from machine import Pin
 from neopixel import NeoPixel
 
@@ -44,6 +45,9 @@ def conectar_ou_configurar():
             print(f"✅ Conectado com sucesso! IP: {ip}")
             led_interno.value(1) # Acende fixo para confirmar
             return ip
+        
+
+
 
     # 3. Falhou ou sem rede? Vira Roteador (Access Point)
     led_interno.value(0)
@@ -203,6 +207,8 @@ def limpar():
     for i in range(num_leds): fita[i] = (0, 0, 0)
     fita.write()
 
+
+
 def wheel(pos):
     if pos < 85: return (pos * 3, 255 - pos * 3, 0)
     elif pos < 170:
@@ -220,9 +226,129 @@ def efeito_resultado(cor, vezes=5):
         limpar()
         time.sleep(0.1)
 
+# ==========================================
+# 📡 SISTEMA DE ATUALIZAÇÃO VIA INTERNET (OTA)
+# ==========================================
+def atualizar_pelo_github():
+    # Cole AQUI o link RAW do seu GitHub
+    url_do_codigo = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/main.py"
+    
+    print(f"🌐 Buscando atualização em: {url_do_codigo}...")
+    
+    # Acende os LEDs em Roxo para indicar que está baixando
+    for i in range(num_leds): fita[i] = (128, 0, 128)
+    fita.write()
+    
+    try:
+        # Faz o download do arquivo
+        resposta = urequests.get(url_do_codigo)
+        
+        if resposta.status_code == 200:
+            print("✅ Código novo baixado com sucesso! Salvando...")
+            
+            # Abre o main.py atual no modo Escrita ("w") e sobrescreve tudo
+            with open("main.py", "w") as arquivo:
+                arquivo.write(resposta.text)
+                
+            resposta.close()
+            print("♻️ Atualização concluída! O ESP32 vai reiniciar em 3 segundos...")
+            
+            # Pisca verde para confirmar sucesso
+            for _ in range(3):
+                for i in range(num_leds): fita[i] = (0, 255, 0)
+                fita.write()
+                time.sleep(0.5)
+                limpar()
+                time.sleep(0.5)
+                
+            machine.reset() # Reinicia a placa com o código novo!
+        else:
+            print(f"❌ Erro ao baixar. Código do servidor: {resposta.status_code}")
+            resposta.close()
+            # Pisca vermelho indicando erro
+            efeito_resultado((255, 0, 0), vezes=3)
+            
+    except Exception as e:
+        print(f"⚠️ Falha de conexão na atualização: {e}")
+        efeito_resultado((255, 0, 0), vezes=3)
+
+
+# ==========================================
+# 📡 SISTEMA AUTO-OTA (Verifica no Boot)
+# ==========================================
+def auto_atualizar_boot():
+    # ⚠️ COLOQUE SEUS LINKS RAW AQUI
+    url_versao = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/version.txt"
+    url_codigo = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/main.py"
+    
+    print("🔍 Verificando atualizações no GitHub...")
+    
+    # 1. Lê a versão local salva no ESP32
+    try:
+        with open("version.txt", "r") as f:
+            versao_local = f.read().strip()
+    except OSError:
+        versao_local = "0" # Se não existir, assume que é a versão 0
+        
+    try:
+        # 2. Busca a versão remota no GitHub
+        resposta_v = urequests.get(url_versao)
+        versao_remota = resposta_v.text.strip()
+        resposta_v.close()
+        
+        print(f"📦 Versão Local: {versao_local} | ☁️ Versão Nuvem: {versao_remota}")
+        
+        # 3. Compara as versões
+        if versao_remota != versao_local:
+            print("⚠️ NOVA VERSÃO ENCONTRADA! Iniciando download...")
+            
+            # Pisca azul rápido para indicar download
+            for _ in range(3):
+                for i in range(num_leds): fita[i] = (0, 0, 255)
+                fita.write()
+                time.sleep(0.1)
+                limpar()
+                time.sleep(0.1)
+            
+            # Baixa o código novo
+            resposta_c = urequests.get(url_codigo)
+            
+            if resposta_c.status_code == 200:
+                # Salva o novo main.py
+                with open("main.py", "w") as f:
+                    f.write(resposta_c.text)
+                resposta_c.close()
+                
+                # Salva a nova versão no ESP32 para não baixar de novo no próximo boot
+                with open("version.txt", "w") as f:
+                    f.write(versao_remota)
+                    
+                print("✅ Atualizado com sucesso! Reiniciando em 2 segundos...")
+                time.sleep(2)
+                machine.reset() # ♻️ Reinicia com o código novo!
+            else:
+                print("❌ Erro ao baixar o arquivo main.py.")
+                resposta_c.close()
+        else:
+            print("✅ Sistema já está na versão mais recente. Iniciando normal...")
+            
+    except Exception as e:
+        print(f"⚠️ Sem internet ou erro ao checar OTA: {e}. Iniciando sistema local...")        
+
 # --- INÍCIO DO SISTEMA ---
 IP_DA_PLACA = conectar_ou_configurar()
 limpar()
+
+# ========================================================
+# ⬇️ PASSO 3: O GATILHO DA ATUALIZAÇÃO ENTRA AQUI ⬇️
+# ========================================================
+# O código verifica se o ESP32 conseguiu um IP válido da sua casa
+# (e ignora se ele estiver no modo AP "192.168.4.1" de configuração)
+if IP_DA_PLACA and not IP_DA_PLACA.startswith("192.168.4."): 
+    auto_atualizar_boot() # Chama a função que vai lá no GitHub!
+# ========================================================
+# ⬆️ FIM DO GATILHO DE ATUALIZAÇÃO ⬆️
+# ========================================================
 
 # OTA: Liga o WebREPL se você já o configurou via terminal antes
 try:
@@ -242,6 +368,7 @@ print(f"🚀 Servidor do Cassino rodando no IP: {IP_DA_PLACA}")
 
 estado_atual = "parado"
 arco_iris_j = 0
+
 
 while True:
     try:
@@ -284,6 +411,10 @@ while True:
             for i in range(num_leds): 
                 fita[i] = (0, 255, 0); fita.write(); time.sleep(0.02)
             limpar()
+        elif "/atualizar" in request:
+            print("⚠️ [LOG] COMANDO OTA RECEBIDO! Iniciando atualização...")
+            estado_atual = "parado"
+            atualizar_pelo_github()
             
     except OSError:
         # Nenhum comando do PC chegou, pode desenhar os LEDs!

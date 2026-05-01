@@ -9,7 +9,7 @@ from neopixel import NeoPixel
 
 # --- Hardware ---
 led_interno = Pin(8, Pin.OUT)       # LED azul da placa ESP32-C3
-num_leds = 21
+num_leds = 2
 fita = NeoPixel(Pin(1), num_leds)   # Fita RGB no Pino 1
 
 # ==========================================
@@ -397,7 +397,7 @@ if IP_DA_PLACA and not IP_DA_PLACA.startswith("192.168.4."):
 try:
     import webrepl
     webrepl.start()
-    print("🌐 WebREPL (OTA) Ativado!")
+    print("🌐 WebREPL (OTA) Ativado! - BETA TESTE AINDA")
 except:
     print("⚠️ WebREPL não configurado. Tudo bem, OTA desligado por enquanto.")
 

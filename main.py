@@ -31,7 +31,7 @@ def conectar_ou_configurar():
     sta.active(True)
 
     if ssid_salvo:
-        print(f"🔄 Tentando conectar na rede salva: {ssid_salvo}...")
+        print(f"🔄 Tentando conectar na rede salva: [{ssid_salvo}]")
         sta.connect(ssid_salvo, senha_salva)
         
         tentativas = 0

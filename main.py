@@ -397,7 +397,7 @@ if IP_DA_PLACA and not IP_DA_PLACA.startswith("192.168.4."):
 try:
     import webrepl
     webrepl.start()
-    print("🌐 WebREPL (OTA) Ativado! - BETA")
+    print("🌐 WebREPL (OTA) Inoperante ! - BETA")
 except:
     print("⚠️ WebREPL não configurado. Tudo bem, OTA desligado por enquanto.")
 

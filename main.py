@@ -9,7 +9,7 @@ from neopixel import NeoPixel
 
 # --- Hardware ---
 led_interno = Pin(8, Pin.OUT)       # LED azul da placa ESP32-C3
-num_leds = 2
+num_leds = 21
 fita = NeoPixel(Pin(1), num_leds)   # Fita RGB no Pino 1
 
 # ==========================================

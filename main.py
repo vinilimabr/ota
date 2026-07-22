@@ -417,6 +417,7 @@ while True:
     try:
         # Tenta escutar o comando do PC
         conn, addr = s.accept()
+        conn.settimeout(0.1)
         request = conn.recv(1024).decode()
         conn.send('HTTP/1.1 200 OK\n\n')
         conn.close()

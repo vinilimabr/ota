@@ -44,13 +44,13 @@ def conectar_ou_configurar():
             if tentativas % 5 == 0:
                 led_interno.value(not led_interno.value()) 
 
-            # 2. Efeito Fita: "Scanner" Azul buscando rede
+            # 2. Efeito Fita: "Scanner" roxo buscando rede
             for i in range(num_leds): fita[i] = (0, 0, 0) # Apaga manualmente
-            fita[pos] = (0, 100, 255) # Ponto principal azul brilhante
+            fita[pos] = (128, 0, 128) # Ponto principal roxo brilhante
             
             # Cria um rastro
             if 0 <= pos - direcao < num_leds:
-                fita[pos - direcao] = (0, 15, 50) # Rastro mais fraco
+                fita[pos - direcao] = (20, 0, 20) # Rastro mais fraco
             fita.write()
             
             # Faz o ponto ir e voltar

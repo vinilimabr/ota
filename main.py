@@ -233,7 +233,7 @@ def conectar_ou_configurar():
                     <p>Conecte o sistema à sua rede Wi-Fi local para ativar a comunicação.</p>
                     <form action="/salvar" method="GET">
                         <input type="text" name="ssid" placeholder="Nome da Rede (SSID)" required>
-                        <input type="password" name="senha" placeholder="Senha (vazio se aberta)">
+                        <input type="password" name="senha" placeholder="Digite a senha do wifi">
                         <input type="submit" value="Conectar ⚡">
                     </form>
                 </div>

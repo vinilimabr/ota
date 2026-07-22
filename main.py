@@ -84,7 +84,7 @@ def conectar_ou_configurar():
     print("❌ Falha ao conectar. Entrando em Modo Access Point (Configuração)...")
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
-    ap.config(essid="ESP_Config_Digite_192.168.4.1_no_navegador") # Nome da rede no celular
+    ap.config(essid="ESP_Config_Digite_192.168.4.1") # Nome da rede no celular
     print("📡 Conecte-se na rede Wi-Fi 'ESP_Config' com seu celular.")
     print("🌐 Depois, abra o navegador e acesse: http://192.168.4.1")
 

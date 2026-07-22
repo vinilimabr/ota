@@ -58,7 +58,7 @@ def conectar_ou_configurar():
             if pos >= num_leds - 1 or pos <= 0:
                 direcao *= -1 # Inverte a direção quando bate na ponta
 
-            time.sleep(0.1) # Animação mais rápida e fluida
+            time.sleep(0.05) # Animação mais rápida e fluida
             tentativas += 1
 
         if sta.isconnected():

@@ -7,7 +7,7 @@ from ota_updater import OTAUpdater
 
 # 1. Configurações Iniciais
 URL_VERSAO = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/version.txt"
-URL_CODIGO = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/main.py"
+URL_CODIGO = "https://raw.githubusercontent.com/vinilimabr/ota/refs/heads/main/main_fitaled.py"
 
 # 2. Inicializa os Módulos (Infraestrutura)
 leds = ControladorLED()

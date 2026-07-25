@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP C6 · LED Control</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root{
+  --copper:#e8935a;
+  --copper-dim:#a8623a;
+  --cyan:#4de8d8;
+  --cyan-dim:#2a8a80;
+  --bg:#0b0d0c;
+  --board:#121614;
+  --board-raised:#171d1a;
+  --trace:#1e2622;
+  --text:#eef2f0;
+  --text-dim:#7c8a84;
+  --text-faint:#4a5551;
+  --danger:#e85a5a;
+  --ok:#5ae89a;
+  --radius-s:8px;
+  --radius-m:14px;
+  --radius-l:22px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+
+body{
+  background:
+    radial-gradient(circle at 15% 8%, rgba(232,147,90,0.05), transparent 40%),
+    radial-gradient(circle at 85% 92%, rgba(77,232,216,0.05), transparent 40%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding:32px 16px 60px;
+  -webkit-font-smoothing:antialiased;
+}
+
+.mono{font-family:'JetBrains Mono',monospace;}
+
+/* ===== Frame ===== */
+.board{
+  width:100%;
+  max-width:400px;
+  background:var(--board);
+  border-radius:var(--radius-l);
+  border:1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    0 30px 60px -20px rgba(0,0,0,0.7),
+    0 0 0 1px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.03);
+  overflow:hidden;
+  position:relative;
+}
+
+/* faint circuit trace texture on the board */
+.board::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(90deg, var(--trace) 1px, transparent 1px),
+    linear-gradient(0deg, var(--trace) 1px, transparent 1px);
+  background-size:26px 26px;
+  opacity:0.35;
+  pointer-events:none;
+  mask-image:radial-gradient(ellipse at center, black 0%, transparent 75%);
+}
+
+/* ===== Header / silkscreen strip ===== */
+.header{
+  position:relative;
+  padding:22px 24px 18px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.header-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:4px;
+}
+.chip-label{
+  font-size:10px;
+  letter-spacing:0.14em;
+  color:var(--text-faint);
+  text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.chip-label .dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--ok);
+  box-shadow:0 0 8px var(--ok);
+  animation:breathe 2.4s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{opacity:1;}
+  50%{opacity:0.35;}
+}
+h1{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:22px;
+  font-weight:700;
+  margin:0;
+  letter-spacing:-0.01em;
+}
+h1 span{color:var(--copper);}
+.subtitle{
+  font-size:11px;
+  color:var(--text-faint);
+  margin-top:2px;
+  letter-spacing:0.02em;
+}
+
+/* ===== Live LED strip preview — the signature element ===== */
+.strip-wrap{
+  padding:18px 24px 4px;
+  position:relative;
+}
+.strip-rail{
+  background:#050605;
+  border-radius:12px;
+  padding:12px 14px;
+  border:1px solid rgba(255,255,255,0.05);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);
+  position:relative;
+  overflow:hidden;
+}
+.strip-leds{
+  display:flex;
+  gap:4px;
+  position:relative;
+  z-index:1;
+}
+.led{
+  flex:1;
+  height:22px;
+  border-radius:4px;
+  background:#1a1a1a;
+  transition:background 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease;
+}
+.strip-caption{
+  display:flex;
+  justify-content:space-between;
+  margin-top:8px;
+  font-size:10px;
+  color:var(--text-faint);
+  letter-spacing:0.06em;
+}
+.strip-caption b{color:var(--text-dim);font-weight:600;}
+
+/* ===== Body ===== */
+.body{
+  padding:22px 24px 26px;
+  position:relative;
+}
+
+.control{margin-bottom:22px;}
+.control:last-child{margin-bottom:0;}
+
+.control-label{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  margin-bottom:10px;
+}
+.control-label .name{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.control-label .name svg{opacity:0.7;}
+.control-label .value{
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;
+  font-weight:600;
+  color:var(--cyan);
+  background:rgba(77,232,216,0.08);
+  padding:2px 8px;
+  border-radius:6px;
+  min-width:44px;
+  text-align:center;
+}
+
+/* color picker — custom swatch look */
+.color-row{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  background:var(--board-raised);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:var(--radius-m);
+  padding:12px 14px;
+}
+.swatch-outer{
+  width:44px;height:44px;
+  border-radius:10px;
+  position:relative;
+  flex-shrink:0;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.08), 0 4px 14px -4px rgba(0,0,0,0.6);
+}
+.swatch-outer input[type="color"]{
+  -webkit-appearance:none;
+  appearance:none;
+  width:100%;height:100%;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  background:transparent;
+  padding:0;
+}
+.swatch-outer input[type="color"]::-webkit-color-swatch-wrapper{padding:0;}
+.swatch-outer input[type="color"]::-webkit-color-swatch{border:none;border-radius:10px;}
+.hex-readout{
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;
+  color:var(--text-dim);
+  letter-spacing:0.02em;
+}
+.hex-readout span{color:var(--text);font-weight:600;}
+
+/* sliders */
+input[type="range"]{
+  -webkit-appearance:none;
+  appearance:none;
+  width:100%;
+  height:8px;
+  border-radius:5px;
+  background:linear-gradient(90deg, var(--copper-dim) 0%, var(--copper) var(--fill,50%), var(--trace) var(--fill,50%), var(--trace) 100%);
+  outline:none;
+  cursor:pointer;
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:20px;height:20px;
+  border-radius:50%;
+  background:var(--text);
+  cursor:pointer;
+  box-shadow:0 0 0 4px rgba(232,147,90,0.18), 0 2px 6px rgba(0,0,0,0.5);
+  border:2px solid var(--copper);
+  transition:box-shadow 0.15s ease, transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover{
+  transform:scale(1.08);
+  box-shadow:0 0 0 6px rgba(232,147,90,0.24), 0 2px 6px rgba(0,0,0,0.5);
+}
+input[type="range"]::-moz-range-thumb{
+  width:18px;height:18px;
+  border-radius:50%;
+  background:var(--text);
+  border:2px solid var(--copper);
+  cursor:pointer;
+}
+input[type="range"]::-moz-range-track{
+  height:8px;
+  border-radius:5px;
+  background:var(--trace);
+}
+
+/* ===== Effects grid ===== */
+.section-divider{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:26px 0 14px;
+}
+.section-divider .name{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  white-space:nowrap;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.section-divider .line{
+  height:1px;
+  flex:1;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 4px, transparent 4px 8px);
+}
+
+.grid-fx{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+button{
+  font-family:'Space Grotesk',sans-serif;
+  background:var(--board-raised);
+  color:var(--text);
+  border:1px solid rgba(255,255,255,0.07);
+  padding:14px 12px;
+  border-radius:var(--radius-m);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  transition:border-color 0.18s ease, background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  position:relative;
+}
+button:active{transform:scale(0.97);}
+button:hover{
+  border-color:rgba(77,232,216,0.35);
+  background:#1b2220;
+}
+button.active{
+  background:rgba(77,232,216,0.12);
+  border-color:var(--cyan);
+  color:var(--cyan);
+  box-shadow:0 0 0 1px rgba(77,232,216,0.15), 0 0 18px -6px rgba(77,232,216,0.4);
+}
+button svg{flex-shrink:0;}
+
+.btn-on{
+  grid-column:span 2;
+  background:linear-gradient(135deg, rgba(90,232,154,0.14), rgba(90,232,154,0.06));
+  color:var(--ok);
+  border-color:rgba(90,232,154,0.3);
+}
+.btn-on:hover{background:linear-gradient(135deg, rgba(90,232,154,0.22), rgba(90,232,154,0.1));border-color:var(--ok);}
+
+.btn-off{
+  grid-column:span 2;
+  background:linear-gradient(135deg, rgba(232,90,90,0.12), rgba(232,90,90,0.05));
+  color:var(--danger);
+  border-color:rgba(232,90,90,0.28);
+  margin-top:2px;
+}
+.btn-off:hover{background:linear-gradient(135deg, rgba(232,90,90,0.2), rgba(232,90,90,0.08));border-color:var(--danger);}
+
+/* connection status footer */
+.footer{
+  padding:14px 24px 20px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-top:1px solid rgba(255,255,255,0.05);
+}
+.status{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  color:var(--text-faint);
+  letter-spacing:0.04em;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.status .pulse{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--text-faint);
+}
+.status.sending .pulse{background:var(--cyan);box-shadow:0 0 6px var(--cyan);}
+.status.sending{color:var(--cyan);}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+}
+
+button:focus-visible, input:focus-visible{
+  outline:2px solid var(--cyan);
+  outline-offset:2px;
+}
+</style>
+</head>
+<body>
+
+<div class="board">
+
+  <div class="header">
+    <div class="header-top">
+      <div class="chip-label"><span class="dot"></span>ESP32-C6 · ONLINE</div>
+      <div class="chip-label mono">WS2812</div>
+    </div>
+    <h1>Painel <span>LED</span></h1>
+    <div class="subtitle">controle da fita endereçável</div>
+  </div>
+
+  <div class="strip-wrap">
+    <div class="strip-rail">
+      <div class="strip-leds" id="stripLeds"></div>
+    </div>
+    <div class="strip-caption">
+      <span>PREVIEW <b id="fxLabel">COR SÓLIDA</b></span>
+      <span><b id="qtdCaption">20</b>/20 ativos</span>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <div class="control">
+      <div class="control-label">
+        <span class="name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
+          Cor predominante
+        </span>
+      </div>
+      <div class="color-row">
+        <div class="swatch-outer">
+          <input type="color" id="corRGB" value="#00ffcc" oninput="enviarDados('fixa')">
+        </div>
+        <div class="hex-readout">HEX <span id="hexReadout">#00FFCC</span></div>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="control-label">
+        <span class="name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+          Intensidade
+        </span>
+        <span class="value mono" id="valBrilho">59%</span>
+      </div>
+      <input type="range" id="brilho" min="0" max="255" value="150" oninput="atualizarTexto('brilho', 'valBrilho', '%', 2.55); enviarDados()">
+    </div>
+
+    <div class="control">
+      <div class="control-label">
+        <span class="name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+          Velocidade
+        </span>
+        <span class="value mono" id="valVel">50%</span>
+      </div>
+      <input type="range" id="vel" min="1" max="100" value="50" oninput="atualizarTexto('vel', 'valVel', '%', 1); enviarDados()">
+    </div>
+
+    <div class="control">
+      <div class="control-label">
+        <span class="name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="18" height="4" rx="1"/></svg>
+          Qtd. LEDs acesos
+        </span>
+        <span class="value mono" id="valQtd">20</span>
+      </div>
+      <input type="range" id="qtdLeds" min="1" max="20" value="20" oninput="atualizarTexto('qtdLeds', 'valQtd', '', 1); enviarDados()">
+    </div>
+
+    <div class="section-divider">
+      <span class="name">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Controle & efeitos
+      </span>
+      <span class="line"></span>
+    </div>
+
+    <div class="grid-fx">
+      <button class="btn-on" onclick="enviarDados('ligar', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        Ligar / Cor sólida
+      </button>
+
+      <button onclick="enviarDados('arcoiris', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17a10 10 0 0 0-20 0"/><path d="M18 17a6 6 0 0 0-12 0"/></svg>
+        Arco-íris
+      </button>
+      <button onclick="enviarDados('radar', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12 18 8"/></svg>
+        Scanner
+      </button>
+      <button onclick="enviarDados('pulso', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+        Respiração
+      </button>
+      <button onclick="enviarDados('meteoro', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 20 4M20 4h-6M20 4v6"/></svg>
+        Meteoro
+      </button>
+
+      <button class="btn-off" onclick="enviarDados('desligar', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18.4 6.6a9 9 0 1 1-12.8 0M12 3v9"/></svg>
+        Desligar tudo
+      </button>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <div class="status" id="connStatus"><span class="pulse"></span><span id="connText">pronto</span></div>
+    <div class="status mono">v2.1</div>
+  </div>
+
+</div>
+
+<script>
+let efeitoAtual = 'fixa';
+let animFrame = null;
+let animStart = 0;
+
+const stripLedsEl = document.getElementById('stripLeds');
+const NUM_LEDS = 20;
+
+// build the 20 LED preview cells once
+for (let i = 0; i < NUM_LEDS; i++) {
+  const d = document.createElement('div');
+  d.className = 'led';
+  d.dataset.idx = i;
+  stripLedsEl.appendChild(d);
+}
+const ledEls = Array.from(stripLedsEl.children);
+
+const FX_NAMES = {
+  fixa: 'COR SÓLIDA',
+  arcoiris: 'ARCO-ÍRIS',
+  radar: 'SCANNER',
+  pulso: 'RESPIRAÇÃO',
+  meteoro: 'METEORO',
+  desligar: 'DESLIGADO'
+};
+
+function atualizarTexto(idInput, idTexto, sufixo, divisor) {
+  let val = document.getElementById(idInput).value;
+  if (divisor !== 1) val = Math.round(val / divisor);
+  document.getElementById(idTexto).innerText = val + sufixo;
+
+  if (idInput === 'brilho' || idInput === 'vel' || idInput === 'qtdLeds') {
+    const input = document.getElementById(idInput);
+    const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
+    input.style.setProperty('--fill', pct + '%');
+  }
+}
+
+function hexToRgb(hex) {
+  return {
+    r: parseInt(hex.substr(1,2), 16),
+    g: parseInt(hex.substr(3,2), 16),
+    b: parseInt(hex.substr(5,2), 16)
+  };
+}
+
+function hsvToRgb(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r,g,b;
+  if (h < 60) [r,g,b] = [c,x,0];
+  else if (h < 120) [r,g,b] = [x,c,0];
+  else if (h < 180) [r,g,b] = [0,c,x];
+  else if (h < 240) [r,g,b] = [0,x,c];
+  else if (h < 300) [r,g,b] = [x,0,c];
+  else [r,g,b] = [c,0,x];
+  return { r: Math.round((r+m)*255), g: Math.round((g+m)*255), b: Math.round((b+m)*255) };
+}
+
+function setLed(el, r, g, b, alpha) {
+  el.style.background = `rgb(${r}, ${g}, ${b})`;
+  el.style.opacity = alpha;
+  el.style.boxShadow = alpha > 0.15 ? `0 0 ${6 + alpha*6}px rgba(${r},${g},${b},${alpha*0.85}), 0 0 2px rgba(${r},${g},${b},0.9)` : 'none';
+}
+
+function stopAnim() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animFrame = null;
+}
+
+function renderPreview() {
+  stopAnim();
+  const qtd = parseInt(document.getElementById('qtdLeds').value, 10);
+  const brilhoRaw = parseInt(document.getElementById('brilho').value, 10);
+  const brilho = brilhoRaw / 255;
+  const velRaw = parseInt(document.getElementById('vel').value, 10);
+  const hex = document.getElementById('corRGB').value;
+  const { r, g, b } = hexToRgb(hex);
+
+  document.getElementById('fxLabel').innerText = FX_NAMES[efeitoAtual] || efeitoAtual.toUpperCase();
+  document.getElementById('qtdCaption').innerText = qtd;
+
+  if (efeitoAtual === 'desligar') {
+    ledEls.forEach(el => setLed(el, 20, 20, 20, 0.5));
+    return;
+  }
+
+  const off = () => { ledEls.forEach(el => setLed(el, 26, 26, 26, 1)); };
+  off();
+  const active = ledEls.slice(0, qtd);
+
+  if (efeitoAtual === 'fixa') {
+    active.forEach(el => setLed(el, r, g, b, Math.max(brilho, 0.12)));
+    return;
+  }
+
+  animStart = performance.now();
+  const speedFactor = 0.3 + (velRaw / 100) * 2.2;
+
+  function frame(now) {
+    const t = ((now - animStart) / 1000) * speedFactor;
+
+    if (efeitoAtual === 'arcoiris') {
+      active.forEach((el, i) => {
+        const hue = (t * 80 + i * (360 / active.length)) % 360;
+        const c = hsvToRgb(hue, 1, Math.max(brilho, 0.25));
+        setLed(el, c.r, c.g, c.b, 1);
+      });
+    } else if (efeitoAtual === 'radar') {
+      const pos = (Math.sin(t * 1.4) * 0.5 + 0.5) * (active.length - 1);
+      active.forEach((el, i) => {
+        const dist = Math.abs(i - pos);
+        const a = Math.max(0, 1 - dist / 3) * Math.max(brilho, 0.2);
+        setLed(el, r, g, b, a < 0.05 ? 0.08 : a);
+      });
+    } else if (efeitoAtual === 'pulso') {
+      const a = (Math.sin(t * 1.8) * 0.5 + 0.5) * Math.max(brilho, 0.2) + 0.06;
+      active.forEach(el => setLed(el, r, g, b, a));
+    } else if (efeitoAtual === 'meteoro') {
+      const cyclePos = (t * 6) % (active.length + 6) - 6;
+      active.forEach((el, i) => {
+        const d = i - cyclePos;
+        let a = 0;
+        if (d >= 0 && d < 5) a = (1 - d / 5) * Math.max(brilho, 0.25);
+        setLed(el, r, g, b, a < 0.04 ? 0.08 : a);
+      });
+    } else {
+      active.forEach(el => setLed(el, r, g, b, Math.max(brilho, 0.12)));
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+  animFrame = requestAnimationFrame(frame);
+}
+
+function flashStatus() {
+  const status = document.getElementById('connStatus');
+  const text = document.getElementById('connText');
+  status.classList.add('sending');
+  text.innerText = 'enviando';
+  clearTimeout(flashStatus._t);
+  flashStatus._t = setTimeout(() => {
+    status.classList.remove('sending');
+    text.innerText = 'pronto';
+  }, 380);
+}
+
+function enviarDados(novoEfeito = null, btnElement = null) {
+  if (novoEfeito) {
+    efeitoAtual = novoEfeito === 'ligar' ? 'fixa' : novoEfeito;
+    document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    if (btnElement && !btnElement.classList.contains('btn-off') && !btnElement.classList.contains('btn-on')) {
+      btnElement.classList.add('active');
+    }
+  }
+
+  const hex = document.getElementById('corRGB').value;
+  document.getElementById('hexReadout').innerText = hex.toUpperCase();
+  const { r, g, b } = hexToRgb(hex);
+
+  const brilho = document.getElementById('brilho').value;
+  const qtd = document.getElementById('qtdLeds').value;
+  const vel = document.getElementById('vel').value;
+
+  renderPreview();
+  flashStatus();
+
+  fetch(`/api/led?fx=${efeitoAtual}&r=${r}&g=${g}&b=${b}&brilho=${brilho}&qtd=${qtd}&vel=${vel}`)
+    .catch(err => {});
+}
+
+// init fill amounts on the two sliders that use gradient fill
+['brilho','vel','qtdLeds'].forEach(id => {
+  const input = document.getElementById(id);
+  const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
+  input.style.setProperty('--fill', pct + '%');
+});
+
+renderPreview();
+</script>
+
+</body>
+</html>

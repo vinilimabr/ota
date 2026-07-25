@@ -272,6 +272,33 @@ input[type="range"]::-moz-range-track{
   background:var(--trace);
 }
 
+/* total LED count — a config value, typed exactly rather than dragged */
+input[type="number"]{
+  width:100%;
+  background:var(--board-raised);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:var(--radius-m);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:15px;
+  font-weight:600;
+  padding:12px 14px;
+  outline:none;
+  transition:border-color 0.15s ease;
+}
+input[type="number"]:focus{border-color:var(--cyan);}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button{
+  opacity:0.6;
+  cursor:pointer;
+}
+.control-hint{
+  font-size:10.5px;
+  color:var(--text-faint);
+  margin-top:6px;
+  letter-spacing:0.02em;
+}
+
 /* ===== Effects grid ===== */
 .section-divider{
   display:flex;
@@ -402,7 +429,7 @@ button:focus-visible, input:focus-visible{
     </div>
     <div class="strip-caption">
       <span>PREVIEW <b id="fxLabel">COR SÓLIDA</b></span>
-      <span><b id="qtdCaption">20</b>/20 ativos</span>
+      <span><b id="qtdCaption">20</b>/<span id="totalCaption">20</span> ativos</span>
     </div>
   </div>
 
@@ -448,6 +475,18 @@ button:focus-visible, input:focus-visible{
     <div class="control">
       <div class="control-label">
         <span class="name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v3M15 8v3M19 8v3"/></svg>
+          Total de LEDs na fita
+        </span>
+        <span class="value mono" id="valTotalLeds">20</span>
+      </div>
+      <input type="number" id="totalLeds" min="1" max="600" value="20" onchange="atualizarTotalLeds()">
+      <div class="control-hint">Ajuste aqui se sua fita física tiver outro tamanho</div>
+    </div>
+
+    <div class="control">
+      <div class="control-label">
+        <span class="name">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="18" height="4" rx="1"/></svg>
           Qtd. LEDs acesos
         </span>
@@ -470,19 +509,19 @@ button:focus-visible, input:focus-visible{
         Ligar / Cor sólida
       </button>
 
-      <button onclick="enviarDados('arcoiris', this)">
+      <button data-efeito="arcoiris" onclick="enviarDados('arcoiris', this)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17a10 10 0 0 0-20 0"/><path d="M18 17a6 6 0 0 0-12 0"/></svg>
         Arco-íris
       </button>
-      <button onclick="enviarDados('radar', this)">
+      <button data-efeito="radar" onclick="enviarDados('radar', this)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12 18 8"/></svg>
         Scanner
       </button>
-      <button onclick="enviarDados('pulso', this)">
+      <button data-efeito="pulso" onclick="enviarDados('pulso', this)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
         Respiração
       </button>
-      <button onclick="enviarDados('meteoro', this)">
+      <button data-efeito="meteoro" onclick="enviarDados('meteoro', this)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 20 4M20 4h-6M20 4v6"/></svg>
         Meteoro
       </button>
@@ -497,7 +536,7 @@ button:focus-visible, input:focus-visible{
 
   <div class="footer">
     <div class="status" id="connStatus"><span class="pulse"></span><span id="connText">pronto</span></div>
-    <div class="status mono">v2.1</div>
+    <div class="status mono">DESENVOLVIDO POR VINILIMA</div>
   </div>
 
 </div>
@@ -508,16 +547,22 @@ let animFrame = null;
 let animStart = 0;
 
 const stripLedsEl = document.getElementById('stripLeds');
-const NUM_LEDS = 20;
+let NUM_LEDS = 20;
+let ledEls = [];
 
-// build the 20 LED preview cells once
-for (let i = 0; i < NUM_LEDS; i++) {
-  const d = document.createElement('div');
-  d.className = 'led';
-  d.dataset.idx = i;
-  stripLedsEl.appendChild(d);
+// (re)constrói as células de preview da fita — chamada no carregamento
+// e sempre que o "Total de LEDs na fita" muda
+function reconstruirTiraDeLeds() {
+  stripLedsEl.innerHTML = '';
+  for (let i = 0; i < NUM_LEDS; i++) {
+    const d = document.createElement('div');
+    d.className = 'led';
+    d.dataset.idx = i;
+    stripLedsEl.appendChild(d);
+  }
+  ledEls = Array.from(stripLedsEl.children);
 }
-const ledEls = Array.from(stripLedsEl.children);
+reconstruirTiraDeLeds();
 
 const FX_NAMES = {
   fixa: 'COR SÓLIDA',
@@ -538,6 +583,28 @@ function atualizarTexto(idInput, idTexto, sufixo, divisor) {
     const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
     input.style.setProperty('--fill', pct + '%');
   }
+}
+
+function atualizarTotalLeds() {
+  const input = document.getElementById('totalLeds');
+  let novoTotal = parseInt(input.value, 10);
+  if (isNaN(novoTotal)) novoTotal = NUM_LEDS;
+  novoTotal = Math.max(1, Math.min(600, novoTotal));
+  input.value = novoTotal;
+  document.getElementById('valTotalLeds').innerText = novoTotal;
+
+  NUM_LEDS = novoTotal;
+  reconstruirTiraDeLeds();
+
+  // a qtd. de LEDs acesos nunca pode passar do novo total
+  const qtdInput = document.getElementById('qtdLeds');
+  qtdInput.max = NUM_LEDS;
+  if (parseInt(qtdInput.value, 10) > NUM_LEDS) {
+    qtdInput.value = NUM_LEDS;
+  }
+  atualizarTexto('qtdLeds', 'valQtd', '', 1);
+
+  enviarDados();
 }
 
 function hexToRgb(hex) {
@@ -582,6 +649,7 @@ function renderPreview() {
 
   document.getElementById('fxLabel').innerText = FX_NAMES[efeitoAtual] || efeitoAtual.toUpperCase();
   document.getElementById('qtdCaption').innerText = qtd;
+  document.getElementById('totalCaption').innerText = NUM_LEDS;
 
   if (efeitoAtual === 'desligar') {
     ledEls.forEach(el => setLed(el, 20, 20, 20, 0.5));
@@ -667,18 +735,68 @@ function enviarDados(novoEfeito = null, btnElement = null) {
   renderPreview();
   flashStatus();
 
-  fetch(`/api/led?fx=${efeitoAtual}&r=${r}&g=${g}&b=${b}&brilho=${brilho}&qtd=${qtd}&vel=${vel}`)
+  fetch(`/api/led?fx=${efeitoAtual}&r=${r}&g=${g}&b=${b}&brilho=${brilho}&qtd=${qtd}&vel=${vel}&total=${NUM_LEDS}`)
     .catch(err => {});
 }
 
 // init fill amounts on the two sliders that use gradient fill
-['brilho','vel','qtdLeds'].forEach(id => {
-  const input = document.getElementById(id);
-  const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
-  input.style.setProperty('--fill', pct + '%');
-});
+function atualizarFillsIniciais() {
+  ['brilho','vel','qtdLeds'].forEach(id => {
+    const input = document.getElementById(id);
+    const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
+    input.style.setProperty('--fill', pct + '%');
+  });
+}
 
-renderPreview();
+// Busca o estado atual do ESP e preenche a pagina com ele, em vez de
+// simplesmente assumir os valores padrao do HTML — importante agora que
+// o ESP guarda o ultimo preset usado (efeito, cor, total de LEDs etc.)
+// entre reinicios: sem isso, a primeira interacao na pagina reenviaria
+// os valores "de fabrica" do HTML e sobrescreveria o preset salvo.
+async function sincronizarComEsp() {
+  try {
+    const resp = await fetch('/api/estado');
+    if (!resp.ok) throw new Error('sem resposta');
+    const estado = await resp.json();
+
+    NUM_LEDS = Math.max(1, Math.min(600, estado.total ?? NUM_LEDS));
+    reconstruirTiraDeLeds();
+
+    const totalInput = document.getElementById('totalLeds');
+    totalInput.value = NUM_LEDS;
+    document.getElementById('valTotalLeds').innerText = NUM_LEDS;
+
+    const qtdInput = document.getElementById('qtdLeds');
+    qtdInput.max = NUM_LEDS;
+    qtdInput.value = Math.min(estado.qtd ?? NUM_LEDS, NUM_LEDS);
+
+    document.getElementById('brilho').value = estado.brilho ?? 150;
+    document.getElementById('vel').value = estado.vel ?? 50;
+
+    const clamp255 = v => Math.max(0, Math.min(255, v ?? 0));
+    const hex = '#' + [clamp255(estado.r), clamp255(estado.g), clamp255(estado.b)]
+      .map(v => v.toString(16).padStart(2, '0')).join('');
+    document.getElementById('corRGB').value = hex;
+    document.getElementById('hexReadout').innerText = hex.toUpperCase();
+
+    efeitoAtual = (estado.fx === 'ligar' || estado.fx === 'boot') ? 'fixa' : (estado.fx || 'fixa');
+
+    atualizarTexto('brilho', 'valBrilho', '%', 2.55);
+    atualizarTexto('vel', 'valVel', '%', 1);
+    atualizarTexto('qtdLeds', 'valQtd', '', 1);
+
+    document.querySelectorAll('.grid-fx button[data-efeito]').forEach(b => {
+      b.classList.toggle('active', b.dataset.efeito === efeitoAtual);
+    });
+  } catch (erro) {
+    // ESP ainda nao respondeu (ou pagina aberta sem conexao) -- mantem os
+    // valores padrao do HTML como estao
+    atualizarFillsIniciais();
+  }
+  renderPreview();
+}
+
+sincronizarComEsp();
 </script>
 
 </body>
